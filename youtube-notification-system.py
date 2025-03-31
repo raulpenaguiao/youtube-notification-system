@@ -4,23 +4,7 @@ import os
 import json
 import requests
 import time
-
-# List of channel IDs to monitor
-CHANNEL_IDS = [
-    "UCZ4AMrDcNrfy3X6nsU8-rPg", #Economics Explained
-    "UCv_vLHiWVBh_FR9vbeuiY-A", #Historia civilis
-    "UCJmnUpMuGR6UYqZ4qGCRFJg", #Veritassium
-    "UC2C_jShtL725hvbm1arSV9w", #CGP Grey
-    "UCMOqf8ab-42UUQIdVoKwjlQ", #Practical Engineer
-    "UCYO_jab_esuFRV4b17AJtAw", #3 blue 1 brown
-    "UCSPLhwvj0gBufjDRzSQb3GQ", #bobby broccoli
-    "UC3XTzVzaHQEd30rQbuvCtTQ", #Last week tonight
-    "UCuVLG9pThvBABcYCm7pkNkA", #Climate Town
-    "UC9RM-iSvTu1uPJb8X5yp3EQ", #Wendover Productions
-    "UCRRr_xrOm66qaigIbwFLvbQ", #Simon Clark
-    "UCgNg3vwj3xt7QOrcIDaHdFg", #Polymatter
-    "UCmGSJVG3mCRXVOP4yZrU1Dw", #Johnny Harris
-]
+import hashlib
 
 
 
@@ -36,11 +20,15 @@ def get_latest_videos(channel_id, API_KEY, max_results=50):
     """
     Fetch the latest videos from a channel's uploads.
     """
-    url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={channel_id}&maxResults={max_results}&order=date&type=video&key={API_KEY}"
-    response = requests.get(url)
-    response.raise_for_status()  # Raise an exception if the request failed
-    return response.json().get("items", [])
-
+    try:
+        url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={channel_id}&maxResults={max_results}&order=date&type=video&key={API_KEY}"
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an exception if the request failed
+        return response.json().get("items", [])
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching videos: {e.__repr__()}")
+        return []
+    
 def get_new_videos(channel_id, since_date, API_KEY):
     """
     Check for videos uploaded since a certain date.
@@ -72,9 +60,9 @@ def save_last_check():
     with open(LAST_CHECK_FILE_PATH, "w") as f:
         json.dump({"last_check": datetime.datetime.now().isoformat()}, f)
 
-def send_notification(message):
+def send_notification(message, channel):
     try:
-        requests.post("https://ntfy.sh/youtube-notification-system",
+        requests.post(f"https://ntfy.sh/{channel}",
             data=message.encode(encoding='utf-8'))
     except Exception as e:
         print(f"Failed to send notification: {e}")
@@ -84,15 +72,20 @@ def main():
     # Read API key from file
     with open(API_FILE_PATH, 'r') as f:
         API_KEY = f.read().strip()
+
     # Read channel IDs from JSON file
     with open(CHANNEL_LIST_PATH, 'r') as f:
         CHANNEL_IDS = json.load(f)
-
+    
+    hash_str = str(API_KEY) + str(datetime.datetime.now())
+    hash_str = hashlib.md5(hash_str.encode()).hexdigest() 
+    channel = f"youtube-notification-system-{hash_str}"
+    print(f"Listening in the link: https://ntfy.sh/{channel}")
     # Load the date of the last check
     while True:
         last_check = load_last_check()
         print(f"It is now {datetime.datetime.now()}. Checking for new videos since {last_check}")                
-        send_notification("Starting loop")
+        send_notification("Starting loop", channel)
         
         # Loop through each channel and check for new uploads
         for channel in CHANNEL_IDS:
@@ -110,7 +103,7 @@ def main():
 
         # Update the last check time
         save_last_check()
-        time.sleep(600)  # Sleep for 10 minutes (600 seconds)
+        time.sleep(3600)  # Sleep for 1 hour (3600 seconds)
 
 if __name__ == "__main__":
     main()
