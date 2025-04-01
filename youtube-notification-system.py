@@ -5,6 +5,10 @@ import json
 import requests
 import time
 import hashlib
+import getpass
+import uuid
+import subprocess
+import platform
 
 
 
@@ -60,37 +64,62 @@ def save_last_check():
     with open(LAST_CHECK_FILE_PATH, "w") as f:
         json.dump({"last_check": datetime.datetime.now().isoformat()}, f)
 
-def send_notification(message, channel):
+def send_notification(message, ntfy_channel):
     try:
-        requests.post(f"https://ntfy.sh/{channel}",
+        requests.post(f"https://ntfy.sh/{ntfy_channel}",
             data=message.encode(encoding='utf-8'))
     except Exception as e:
         print(f"Failed to send notification: {e}")
 
+def get_unique_user_string():
+    """
+    Generate a unique string based on the user's information.
+    """
+    unique_id = ''
+    username = getpass.getuser()
+    mac = ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff) for elements in range(0,2*6,2)][::-1])
+
+    if platform.system() == "Windows":
+        try:
+            cmd = "wmic baseboard get serialnumber"
+            motherboard_serial = subprocess.check_output(cmd, shell=True).decode().split('\n')[1].strip()
+            unique_id = f"{username}-{mac}-{motherboard_serial}"
+        except:
+            unique_id = f"{username}-{mac}"
+    else:
+        unique_id = f"{username}-{mac}"
+    return unique_id
+
 def main():
     # load the API key from the file
     # Read API key from file
+    if not os.path.exists(API_FILE_PATH):
+        print(f"API key file not found at {API_FILE_PATH}. Please create it with your YouTube API key.")
+        return
     with open(API_FILE_PATH, 'r') as f:
         API_KEY = f.read().strip()
 
-    # Read channel IDs from JSON file
-    with open(CHANNEL_LIST_PATH, 'r') as f:
-        CHANNEL_IDS = json.load(f)
-    
-    hash_str = str(API_KEY) + str(datetime.datetime.now())
-    hash_str = hashlib.md5(hash_str.encode()).hexdigest() 
-    channel = f"youtube-notification-system-{hash_str}"
-    print(f"Listening in the link: https://ntfy.sh/{channel}")
-    # Load the date of the last check
+    # Get a unique identified string for the notification system
+    script_path = os.path.abspath(__file__)
+    hash_str = str(API_KEY) + script_path + get_unique_user_string()
+    hash_str = hashlib.md5(hash_str.encode()).hexdigest()
+    ntfy_channel = f"youtube-notification-system-{hash_str}"
+    print(f"Listening in the link: https://ntfy.sh/{ntfy_channel}")
+    send_notification("Starting loop", ntfy_channel)
+
+    #Start main loop
     while True:
+        # Read channel IDs from JSON file, in case it has changed
+        if os.path.exists(CHANNEL_LIST_PATH):
+            with open(CHANNEL_LIST_PATH, 'r') as f:
+                CHANNEL_IDS = json.load(f)
         last_check = load_last_check()
         print(f"It is now {datetime.datetime.now()}. Checking for new videos since {last_check}")                
-        send_notification("Starting loop", channel)
         
         # Loop through each channel and check for new uploads
-        for channel in CHANNEL_IDS:
-            channel_id = channel['channel_id']
-            channel_name = channel['channel_name']
+        for yt_channel in CHANNEL_IDS:
+            channel_id = yt_channel['channel_id']
+            channel_name = yt_channel['channel_name']
             new_videos = get_new_videos(channel_id, last_check, API_KEY)
             if new_videos:
                 print(f"\nNew videos found for channel {channel_name}:")
@@ -99,7 +128,7 @@ def main():
                     video_id = video["id"]["videoId"]
                     video_url = f"https://www.youtube.com/watch?v={video_id}"
                     print(f"- {title}: {video_url}")    
-                    send_notification(f"- {title}: {video_url}", channel)            
+                    send_notification(f"- {title}: {video_url}", ntfy_channel)            
 
         # Update the last check time
         save_last_check()
