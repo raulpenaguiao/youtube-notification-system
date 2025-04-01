@@ -99,7 +99,7 @@ def main():
                     video_id = video["id"]["videoId"]
                     video_url = f"https://www.youtube.com/watch?v={video_id}"
                     print(f"- {title}: {video_url}")    
-                    send_notification(f"- {title}: {video_url}")            
+                    send_notification(f"- {title}: {video_url}", channel)            
 
         # Update the last check time
         save_last_check()
