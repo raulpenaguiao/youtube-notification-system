@@ -132,7 +132,7 @@ def main():
 
         # Update the last check time
         save_last_check()
-        time.sleep(3600)  # Sleep for 1 hour (3600 seconds)
+        time.sleep(60*60*6)  # Sleep for 6 hour (3600 seconds)
 
 if __name__ == "__main__":
     main()
