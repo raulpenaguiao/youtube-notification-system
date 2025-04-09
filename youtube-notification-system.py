@@ -19,31 +19,77 @@ LAST_CHECK_FILE_PATH = os.path.join(SCRIPT_DIR_PATH, "last_check.json")
 API_FILE_PATH = os.path.join(SCRIPT_DIR_PATH, "api_key.txt")
 CHANNEL_LIST_PATH = os.path.join(SCRIPT_DIR_PATH, "channel_list.json")
 
-
-def get_latest_videos(channel_id, API_KEY, max_results=50):
+def request_videos(channel_id, API_KEY, max_results=50):
     """
     Fetch the latest videos from a channel's uploads.
     """
     try:
         url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={channel_id}&maxResults={max_results}&order=date&type=video&key={API_KEY}"
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception if the request failed
-        return response.json().get("items", [])
+        return send_request(url).json().get("items", [])
     except requests.exceptions.RequestException as e:
         print(f"Error fetching videos: {e.__repr__()}")
         return []
-    
+
+def send_request(url):
+    """
+    Send a GET request to the specified URL and return the response.
+    """
+    try:
+        print(f"Sending request {url}")
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an exception if the request failed
+        return response
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching data from {url}: {e.__repr__()}")
+        return None
+
+def ISO_8601_duration_to_seconds(duration):
+    """
+    Convert ISO 8601 duration format to seconds.
+    """
+    # Remove PT from start
+    duration_str = duration[2:]
+    seconds = 0
+    # Parse the duration string
+    if 'H' in duration_str:
+        hours, duration_str = duration_str.split('H')
+        seconds += int(hours) * 3600
+    if 'M' in duration_str:
+        minutes, duration_str = duration_str.split('M')
+        seconds += int(minutes) * 60
+    if 'S' in duration_str:
+        s, _ = duration_str.split('S')
+        seconds += int(s)
+    return seconds
+
 def get_new_videos(channel_id, since_date, API_KEY):
     """
     Check for videos uploaded since a certain date.
     """
-    latest_videos = get_latest_videos(channel_id, API_KEY)
+    latest_videos = request_videos(channel_id, API_KEY)
     new_videos = []
     for video in latest_videos:
         published_at = video["snippet"]["publishedAt"]
         published_date = datetime.datetime.fromisoformat(published_at[:-1])
-        if published_date > since_date:
-            new_videos.append(video)
+        if published_date < since_date:
+            continue  # Skip videos published before the last check date
+        
+        # Get video durations
+        try:
+            video_id = video["id"]["videoId"]
+            duration_url = f"https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id={video_id}&key={API_KEY}"
+            duration_json = send_request(duration_url).json()
+            if duration_json and duration_json.get("items"):
+                seconds = ISO_8601_duration_to_seconds(duration_json["items"][0]["contentDetails"]["duration"])
+                video["duration_seconds"] = seconds
+        except Exception as e:
+            print(f"Error getting video duration: {e}")
+            video["duration_seconds"] = 120
+
+        if video["duration_seconds"] < 120:
+            # Filter out videos shorter than 2 minutes
+            continue
+        new_videos.append(video)
     return new_videos
 
 def load_last_check():
@@ -129,6 +175,7 @@ def main():
                     video_url = f"https://www.youtube.com/watch?v={video_id}"
                     print(f"- {title}: {video_url}")    
                     send_notification(f"- {title}: {video_url}", ntfy_channel)            
+                    send_notification(f"{video_url}", ntfy_channel)            
 
         # Update the last check time
         save_last_check()
