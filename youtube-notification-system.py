@@ -35,7 +35,7 @@ def send_request(url):
     Send a GET request to the specified URL and return the response.
     """
     try:
-        print(f"Sending request {url}")
+        #print(f"Sending request {url}")
         response = requests.get(url)
         response.raise_for_status()  # Raise an exception if the request failed
         return response
@@ -150,7 +150,7 @@ def main():
     hash_str = str(API_KEY) + script_path + get_unique_user_string()
     hash_str = hashlib.md5(hash_str.encode()).hexdigest()
     ntfy_channel = f"youtube-notification-system-{hash_str}"
-    print(f"Listening in the link: https://ntfy.sh/{ntfy_channel}")
+    #print(f"Listening in the link: https://ntfy.sh/{ntfy_channel}")
     send_notification("Starting loop", ntfy_channel)
 
     #Start main loop
@@ -173,7 +173,8 @@ def main():
                     title = video["snippet"]["title"]
                     video_id = video["id"]["videoId"]
                     video_url = f"https://www.youtube.com/watch?v={video_id}"
-                    print(f"- {title}: {video_url}")    
+                    print(f"{channel_name} - {title}")    
+                    print(f"{video_url}")    
                     send_notification(f"- {title}: {video_url}", ntfy_channel)            
                     send_notification(f"{video_url}", ntfy_channel)            
 
