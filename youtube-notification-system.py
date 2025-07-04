@@ -150,7 +150,7 @@ def main():
     hash_str = str(API_KEY) + script_path + get_unique_user_string()
     hash_str = hashlib.md5(hash_str.encode()).hexdigest()
     ntfy_channel = f"youtube-notification-system-{hash_str}"
-    #print(f"Listening in the link: https://ntfy.sh/{ntfy_channel}")
+    print(f"Listening in the link: https://ntfy.sh/{ntfy_channel}")
     send_notification("Starting loop", ntfy_channel)
 
     #Start main loop
