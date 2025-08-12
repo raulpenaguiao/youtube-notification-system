@@ -75,6 +75,7 @@ def get_new_videos(channel_id, since_date, API_KEY):
             continue  # Skip videos published before the last check date
         
         # Get video durations
+        MAX_DURATION_ALLOWED = 5 * 60
         try:
             video_id = video["id"]["videoId"]
             duration_url = f"https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id={video_id}&key={API_KEY}"
@@ -84,10 +85,10 @@ def get_new_videos(channel_id, since_date, API_KEY):
                 video["duration_seconds"] = seconds
         except Exception as e:
             print(f"Error getting video duration: {e}")
-            video["duration_seconds"] = 120
+            video["duration_seconds"] = MAX_DURATION_ALLOWED
 
-        if video["duration_seconds"] < 120:
-            # Filter out videos shorter than 2 minutes
+        if video["duration_seconds"] < MAX_DURATION_ALLOWED:
+            # Filter out videos shorter than 5 minutes
             continue
         new_videos.append(video)
     return new_videos
